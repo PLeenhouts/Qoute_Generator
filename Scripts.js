@@ -24,6 +24,7 @@
     };
 
     function planQuote() {
+     
       const omschrijving = document.getElementById("omschrijving").value.trim();
       const tijd = new Date(document.getElementById("tijd").value);
       const dagelijks = document.getElementById("dagelijksCheckbox").checked;
