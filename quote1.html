@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Geplande Random Quote</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 700px; }
+    label { display: block; margin: 0.5rem 0; }
+    input { padding: 0.3rem; width: 300px; }
+    button { margin: 0.3rem 0; padding: 0.4rem 0.8rem; cursor: pointer; }
+    table { margin-top: 1.5rem; border-collapse: collapse; width: 100%; }
+    th, td { padding: 0.5rem; border: 1px solid #ccc; text-align: left; }
+    th { background-color: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <h1>Plan een Quote</h1>
+
+  <label>
+    Datum en tijd:
+    <input type="datetime-local" id="tijd">
+  </label>
+  <button onclick="planQuote()">Plan Quote</button>
+
+  <h2>Geplande Quotes</h2>
+  <table id="quotesTable">
+    <thead>
+      <tr>
+        <th>Tijd</th>
+        <th>Acties</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    let geplandeQuotes = [];
+    let allQuotes = [];
+
+    // Quotes uit bestand laden
+    fetch("quotes.json")
+      .then(response => response.json())
+      .then(data => { allQuotes = data; });
+
+    // Geplande afspraken uit localStorage inladen
+    window.onload = () => {
+      const opgeslagen = localStorage.getItem("geplandeQuotes");
+      if (opgeslagen) {
+        geplandeQuotes = JSON.parse(opgeslagen).map(q => ({
+          ...q,
+          tijd: new Date(q.tijd),
+          timeoutId: planPopup(q)
+        }));
+        toonQuotes();
+      }
+    };
+
+    function planQuote() {
+      const tijd = new Date(document.getElementById("tijd").value);
+
+      if (isNaN(tijd)) {
+        alert("Kies een geldige datum en tijd!");
+        return;
+      }
+
+      const msTotTijd = tijd - new Date();
+      if (msTotTijd <= 0) {
+        alert("De gekozen tijd ligt in het verleden.");
+        return;
+      }
+
+      const geplande = { tijd, timeoutId: null };
+      geplande.timeoutId = planPopup(geplande);
+
+      geplandeQuotes.push(geplande);
+      opslaan();
+      toonQuotes();
+
+      document.getElementById("tijd").value = "";
+    }
+
+    function planPopup(q) {
+      const msTotTijd = q.tijd - new Date();
+      if (msTotTijd > 0) {
+        return setTimeout(() => {
+          if (allQuotes.length > 0) {
+            const randomIndex = Math.floor(Math.random() * allQuotes.length);
+            const randomQuote = allQuotes[randomIndex];
+            alert(`"${randomQuote.text}"\n— ${randomQuote.author}`);
+          } else {
+            alert("Geen quotes beschikbaar.");
+          }
+        }, msTotTijd);
+      }
+      return null;
+    }
+
+    function toonQuotes() {
+      const tbody = document.querySelector("#quotesTable tbody");
+      tbody.innerHTML = "";
+      geplandeQuotes.forEach((q, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${q.tijd.toLocaleString()}</td>
+          <td><button onclick="verwijderQuote(${index})">Verwijderen</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function verwijderQuote(index) {
+      clearTimeout(geplandeQuotes[index].timeoutId);
+      geplandeQuotes.splice(index, 1);
+      opslaan();
+      toonQuotes();
+    }
+
+    function opslaan() {
+      const opslagData = geplandeQuotes.map(q => ({
+        tijd: q.tijd
+      }));
+      localStorage.setItem("geplandeQuotes", JSON.stringify(opslagData));
+    }
+  </script>
+</body>
+</html>
