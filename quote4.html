@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Film Quote Planner</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 700px; }
+    label { display: block; margin: 0.5rem 0; }
+    input { padding: 0.3rem; width: 300px; }
+    button { margin: 0.3rem 0; padding: 0.4rem 0.8rem; cursor: pointer; }
+    table { margin-top: 1.5rem; border-collapse: collapse; width: 100%; }
+    th, td { padding: 0.5rem; border: 1px solid #ccc; text-align: left; }
+    th { background-color: #f0f0f0; }
+    .edit-mode { background-color: #ffd700; }
+    /* Popup styling */
+    #quotePopup {
+      display:none;
+      position:fixed;
+      top:50%;
+      left:50%;
+      transform:translate(-50%, -50%);
+      background:#fff;
+      padding:1rem 2rem;
+      border:2px solid #333;
+      box-shadow:0 0 10px rgba(0,0,0,0.5);
+      z-index:1000;
+      max-width:400px;
+      text-align:center;
+    }
+    #quotePopup p {
+      white-space: pre-line;
+      margin-bottom:1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Plan een Filmquote</h1>
+
+  <label>
+    Omschrijving:
+    <input type="text" id="omschrijving" placeholder="Bijv. Ochtendquote">
+  </label>
+
+  <label>
+    Datum en tijd:
+    <input type="datetime-local" id="tijd">
+  </label>
+
+  <label>
+    <input type="checkbox" id="dagelijksCheckbox"> Dagelijks op hetzelfde tijdstip
+  </label>
+
+  <button onclick="planQuote()" id="planButton">Plan Quote</button>
+
+  <h2>Geplande Quotes</h2>
+  <table id="quotesTable">
+    <thead>
+      <tr>
+        <th>Omschrijving</th>
+        <th>Tijd</th>
+        <th>Dagelijks</th>
+        <th>Acties</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Popup voor quotes -->
+  <div id="quotePopup">
+    <p id="quoteTekst"></p>
+    <button onclick="nieuweQuote()">Nieuwe quote</button>
+    <button onclick="sluitPopup()">Sluiten</button>
+  </div>
+
+  <script>
+    let geplandeQuotes = [];
+    let bewerkIndex = null;
+    let huidigePopupQuote = null;
+
+    let allQuotes = [
+      { text: "I am your father.", author: "Darth Vader (Star Wars)" },
+      { text: "Do or do not. There is no try.", author: "Yoda (Star Wars)" },
+      { text: "It’s not the years, honey, it’s the mileage.", author: "Indiana Jones" },
+      { text: "I’ll be back.", author: "Arnold Schwarzenegger (The Terminator)" }
+    ];
+
+    // Laad opgeslagen quotes
+    window.onload = () => {
+      const opgeslagen = localStorage.getItem("geplandeQuotes");
+      if (opgeslagen) {
+        geplandeQuotes = JSON.parse(opgeslagen).map(q => ({
+          ...q,
+          tijd: new Date(q.tijd),
+          timeoutId: planPopup(q)
+        }));
+        toonQuotes();
+      }
+    };
+
+    function planQuote() {
+      const omschrijving = document.getElementById("omschrijving").value.trim();
+      const tijd = new Date(document.getElementById("tijd").value);
+      const dagelijks = document.getElementById("dagelijksCheckbox").checked;
+
+      if (!omschrijving || isNaN(tijd)) {
+        alert("Vul een omschrijving en een geldige tijd in!");
+        return;
+      }
+
+      const msTotTijd = tijd - new Date();
+      if (msTotTijd <= 0) {
+        alert("De gekozen tijd ligt in het verleden.");
+        return;
+      }
+
+      if (bewerkIndex !== null) {
+        // Update bestaande afspraak
+        clearTimeout(geplandeQuotes[bewerkIndex].timeoutId);
+        geplandeQuotes[bewerkIndex].omschrijving = omschrijving;
+        geplandeQuotes[bewerkIndex].tijd = tijd;
+        geplandeQuotes[bewerkIndex].dagelijks = dagelijks;
+        geplandeQuotes[bewerkIndex].timeoutId = planPopup(geplandeQuotes[bewerkIndex]);
+        bewerkIndex = null;
+        const btn = document.getElementById("planButton");
+        btn.textContent = "Plan Quote";
+        btn.classList.remove("edit-mode");
+      } else {
+        // Nieuwe afspraak
+        const geplande = { omschrijving, tijd, dagelijks, timeoutId: null };
+        geplande.timeoutId = planPopup(geplande);
+        geplandeQuotes.push(geplande);
+      }
+
+      opslaan();
+      toonQuotes();
+      document.getElementById("omschrijving").value = "";
+      document.getElementById("tijd").value = "";
+      document.getElementById("dagelijksCheckbox").checked = false;
+    }
+
+    // Popup functies
+    function planPopup(q) {
+      const msTotTijd = q.tijd - new Date();
+      if (msTotTijd > 0) {
+        return setTimeout(() => {
+          toonQuotePopup(q);
+        }, msTotTijd);
+      }
+      return null;
+    }
+
+    function toonQuotePopup(q) {
+      huidigePopupQuote = q;
+      toonRandomQuoteInPopup(q);
+      document.getElementById("quotePopup").style.display = "block";
+    }
+
+    function toonRandomQuoteInPopup(q) {
+      const randomIndex = Math.floor(Math.random() * allQuotes.length);
+      const randomQuote = allQuotes[randomIndex];
+      document.getElementById("quoteTekst").textContent = `${q.omschrijving}\n\n"${randomQuote.text}"\n— ${randomQuote.author}`;
+    }
+
+    function nieuweQuote() {
+      if (huidigePopupQuote) {
+        toonRandomQuoteInPopup(huidigePopupQuote);
+      }
+    }
+
+    function sluitPopup() {
+      document.getElementById("quotePopup").style.display = "none";
+      if (huidigePopupQuote) {
+        if (!huidigePopupQuote.dagelijks) {
+          const index = geplandeQuotes.findIndex(item => item === huidigePopupQuote);
+          if (index > -1) {
+            clearTimeout(geplandeQuotes[index].timeoutId);
+            geplandeQuotes.splice(index, 1);
+            opslaan();
+            toonQuotes();
+          }
+        } else {
+          // Plan opnieuw voor volgende dag
+          huidigePopupQuote.tijd = new Date(huidigePopupQuote.tijd.getTime() + 24*60*60*1000);
+          huidigePopupQuote.timeoutId = planPopup(huidigePopupQuote);
+          opslaan();
+          toonQuotes();
+        }
+        huidigePopupQuote = null;
+      }
+    }
+
+    // Tabellen en bewerken
+    function toonQuotes() {
+      const tbody = document.querySelector("#quotesTable tbody");
+      tbody.innerHTML = "";
+      geplandeQuotes.forEach((q, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${q.omschrijving}</td>
+          <td>${q.tijd.toLocaleString()}</td>
+          <td>${q.dagelijks ? "Ja" : "Nee"}</td>
+          <td>
+            <button onclick="bewerkQuote(${index})"> Bewerk</button>
+            <button onclick="verwijderQuote(${index})"> Verwijderen</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function bewerkQuote(index) {
+      const q = geplandeQuotes[index];
+      document.getElementById("omschrijving").value = q.omschrijving;
+      document.getElementById("tijd").value = q.tijd.toISOString().slice(0,16);
+      document.getElementById("dagelijksCheckbox").checked = q.dagelijks;
+      bewerkIndex = index;
+      const btn = document.getElementById("planButton");
+      btn.textContent = "Opslaan Wijziging";
+      btn.classList.add("edit-mode");
+    }
+
+    function verwijderQuote(index) {
+      clearTimeout(geplandeQuotes[index].timeoutId);
+      geplandeQuotes.splice(index, 1);
+      opslaan();
+      toonQuotes();
+    }
+
+    function opslaan() {
+      const opslagData = geplandeQuotes.map(q => ({
+        omschrijving: q.omschrijving,
+        tijd: q.tijd,
+        dagelijks: q.dagelijks
+      }));
+      localStorage.setItem("geplandeQuotes", JSON.stringify(opslagData));
+    }
+  </script>
+</body>
+</html>
