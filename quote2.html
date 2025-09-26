@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Film Quote Planner</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 700px; }
+    label { display: block; margin: 0.5rem 0; }
+    input { padding: 0.3rem; width: 300px; }
+    button { margin: 0.3rem 0; padding: 0.4rem 0.8rem; cursor: pointer; }
+    table { margin-top: 1.5rem; border-collapse: collapse; width: 100%; }
+    th, td { padding: 0.5rem; border: 1px solid #ccc; text-align: left; }
+    th { background-color: #f0f0f0; }
+    .edit-mode { background-color: #ffd700; }
+  </style>
+</head>
+<body>
+  <h1>Plan een Filmquote</h1>
+
+  <label>
+    Omschrijving:
+    <input type="text" id="omschrijving" placeholder="Bijv. Ochtendquote">
+  </label>
+
+  <label>
+    Datum en tijd:
+    <input type="datetime-local" id="tijd">
+  </label>
+
+  <button onclick="planQuote()" id="planButton">Plan Quote</button>
+
+  <h2>Geplande Quotes</h2>
+  <table id="quotesTable">
+    <thead>
+      <tr>
+        <th>Omschrijving</th>
+        <th>Tijd</th>
+        <th>Acties</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    let geplandeQuotes = [];
+    let bewerkIndex = null; // Houd bij welke quote we aan het bewerken zijn
+
+    // Filmquotes in script
+    let allQuotes = [
+      { text: "I am your father.", author: "Darth Vader (Star Wars)" },
+      { text: "Do or do not. There is no try.", author: "Yoda (Star Wars)" },
+      { text: "It’s not the years, honey, it’s the mileage.", author: "Indiana Jones" },
+      { text: "I’ll be back.", author: "Arnold Schwarzenegger (The Terminator)" }
+    ];
+
+    // Geplande afspraken uit localStorage inladen
+    window.onload = () => {
+      const opgeslagen = localStorage.getItem("geplandeQuotes");
+      if (opgeslagen) {
+        geplandeQuotes = JSON.parse(opgeslagen).map(q => ({
+          ...q,
+          tijd: new Date(q.tijd),
+          timeoutId: planPopup(q)
+        }));
+        toonQuotes();
+      }
+    };
+
+    function planQuote() {
+      const omschrijving = document.getElementById("omschrijving").value.trim();
+      const tijd = new Date(document.getElementById("tijd").value);
+
+      if (!omschrijving || isNaN(tijd)) {
+        alert("Vul een omschrijving en een geldige tijd in!");
+        return;
+      }
+
+      const msTotTijd = tijd - new Date();
+      if (msTotTijd <= 0) {
+        alert("De gekozen tijd ligt in het verleden.");
+        return;
+      }
+
+      if (bewerkIndex !== null) {
+        //  Update bestaande afspraak
+        clearTimeout(geplandeQuotes[bewerkIndex].timeoutId);
+        geplandeQuotes[bewerkIndex].omschrijving = omschrijving;
+        geplandeQuotes[bewerkIndex].tijd = tijd;
+        geplandeQuotes[bewerkIndex].timeoutId = planPopup(geplandeQuotes[bewerkIndex]);
+        bewerkIndex = null;
+        const btn = document.getElementById("planButton");
+        btn.textContent = "Plan Quote";
+        btn.classList.remove("edit-mode");
+      } else {
+        //  Nieuwe afspraak
+        const geplande = { omschrijving, tijd, timeoutId: null };
+        geplande.timeoutId = planPopup(geplande);
+        geplandeQuotes.push(geplande);
+      }
+
+      opslaan();
+      toonQuotes();
+      document.getElementById("omschrijving").value = "";
+      document.getElementById("tijd").value = "";
+    }
+
+    function planPopup(q) {
+      const msTotTijd = q.tijd - new Date();
+      if (msTotTijd > 0) {
+        return setTimeout(() => {
+          const randomIndex = Math.floor(Math.random() * allQuotes.length);
+          const randomQuote = allQuotes[randomIndex];
+          alert(`${q.omschrijving}\n\n"${randomQuote.text}"\n— ${randomQuote.author}`);
+
+          // Na tonen meteen verwijderen
+          const index = geplandeQuotes.findIndex(item => item.tijd.getTime() === q.tijd.getTime() && item.omschrijving === q.omschrijving);
+          if (index > -1) {
+            geplandeQuotes.splice(index, 1);
+            opslaan();
+            toonQuotes();
+          }
+        }, msTotTijd);
+      }
+      return null;
+    }
+
+    function toonQuotes() {
+      const tbody = document.querySelector("#quotesTable tbody");
+      tbody.innerHTML = "";
+      geplandeQuotes.forEach((q, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${q.omschrijving}</td>
+          <td>${q.tijd.toLocaleString()}</td>
+          <td>
+            <button onclick="bewerkQuote(${index})"> Bewerk</button>
+            <button onclick="verwijderQuote(${index})"> Verwijderen</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function bewerkQuote(index) {
+      const q = geplandeQuotes[index];
+      document.getElementById("omschrijving").value = q.omschrijving;
+      document.getElementById("tijd").value = q.tijd.toISOString().slice(0,16); // formaat voor datetime-local
+      bewerkIndex = index;
+      const btn = document.getElementById("planButton");
+      btn.textContent = "Opslaan Wijziging";
+      btn.classList.add("edit-mode");
+    }
+
+    function verwijderQuote(index) {
+      clearTimeout(geplandeQuotes[index].timeoutId);
+      geplandeQuotes.splice(index, 1);
+      opslaan();
+      toonQuotes();
+    }
+
+    function opslaan() {
+      const opslagData = geplandeQuotes.map(q => ({
+        omschrijving: q.omschrijving,
+        tijd: q.tijd
+      }));
+      localStorage.setItem("geplandeQuotes", JSON.stringify(opslagData));
+    }
+  </script>
+</body>
+</html>
